@@ -16,7 +16,7 @@ load_dotenv()
 GCP_PROJECT_ID = os.getenv("GCP_PROJECT_ID")
 BQ_PUBLIC_DATASET = "bigquery-public-data"
 BQ_PUBLIC_TABLE = "iowa_liquor_sales.sales"
-IOWA_CENSUS_URL = "https://data.iowa.gov/api/views/707/rows.csv"
+IOWA_CENSUS_URL = "https://data.iowa.gov/api/dataset-download?path=datasets%2F707%2Frows.json"
 
 def get_bigquery_client():
     """
@@ -37,7 +37,11 @@ def extract_liquor_sales(client):
     Returns:
         pd.DataFrame: Iowa liquor sales data from the last 3 years.
     """
-    pass
+    query = """ SELECT * FROM `bigquery-public-data.iowa_liquor_sales.sales` WHERE EXTRACT(YEAR FROM date) > (EXTRACT(YEAR FROM CURRENT_DATE())-3)"""
+    query_job = client.query(query)
+    df = query_job.to_dataframe()
+
+    return df
 
 def extract_census_data():
     """
@@ -46,7 +50,12 @@ def extract_census_data():
     Returns:
         pd.DataFrame: Iowa census population data by county.
     """
-    pass
+    response = requests.get(IOWA_CENSUS_URL)
+    response.raise_for_status()
+    data = response.json()
+    df = pd.DataFrame(data)
+
+    return df
 
 def clean_and_join_data(liquor_df, census_df):
     """
@@ -81,7 +90,14 @@ if __name__ == "__main__":
         client = get_bigquery_client()
         print(f"✓ BigQuery client initialized")
         print(f"✓ Project ID: {GCP_PROJECT_ID}")
-        print(f"✓ Setup complete. Ready for ETL pipeline.")
+        
+        print(f"✓ Extracting Iowa Liquor Sales data from BigQuery...")
+        liquor_df = extract_liquor_sales(client)
+        print(f"✓ Extracted {len(liquor_df)} rows of liquor sales data")
+
+        print(f"✓ Extracting Iowa Census data from Data Portal...")
+        census_df = extract_census_data()
+        print(f"✓ Extracted {len(census_df)} rows of census data")
     except Exception as e:
         print(f"✗ Error: {e}")
         print("Ensure GOOGLE_APPLICATION_CREDENTIALS is set correctly")
