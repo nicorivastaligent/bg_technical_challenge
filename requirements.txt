@@ -2,9 +2,11 @@ certifi==2026.6.17
 cffi==2.1.0
 charset-normalizer==3.4.9
 cryptography==49.0.0
+db-dtypes==1.7.1
 google-api-core==2.32.0
 google-auth==2.56.1
 google-cloud-bigquery==3.42.2
+google-cloud-bigquery-storage==2.39.0
 google-cloud-core==2.6.0
 google-crc32c==1.8.0
 google-resumable-media==2.10.0
@@ -17,6 +19,7 @@ packaging==26.2
 pandas==3.0.3
 proto-plus==1.28.1
 protobuf==7.35.1
+pyarrow==25.0.0
 pyasn1==0.6.4
 pyasn1_modules==0.4.2
 pycparser==3.0
