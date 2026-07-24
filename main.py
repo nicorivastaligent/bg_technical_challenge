@@ -49,8 +49,7 @@ def extract_liquor_sales(client):
         sale_dollars,
         bottles_sold
     FROM `bigquery-public-data.iowa_liquor_sales.sales` WHERE EXTRACT(YEAR FROM date) > (EXTRACT(YEAR FROM CURRENT_DATE())-3) 
-    order by date, county, store_name, category_name
-    LIMIT 100000"""
+    order by date, county, store_name, category_name"""
     query_job = client.query(query)
     df = query_job.to_dataframe()
 
