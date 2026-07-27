@@ -1,4 +1,4 @@
-content = """# Task 2: Data Quality & Performance
+# Task 2: Data Quality & Performance
 
 ## 2.1 Data Quality
 The data pipeline implements automated data quality checks, validating criteria such as null values, negative values in numeric columns, duplicate rows, and empty tables. When evaluating the checks, the code implements an error handling mechanism that logs the results and assesses the severity of any failures. The pipeline only stops execution (raises an exception) when a data quality error is categorized as CRITICAL (for example, when duplicate records are detected). For non-critical issues, it reports the failure but allows the pipeline to continue.
