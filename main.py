@@ -28,6 +28,7 @@ def get_bigquery_client():
     """
     return bigquery.Client(project=GCP_PROJECT_ID)
 
+""" ------ Bronze layer -------  """
 def extract_liquor_sales(client):
     """
     Extract Iowa liquor sales from BigQuery (last 3 years, limit 100K rows).
@@ -48,7 +49,7 @@ def extract_liquor_sales(client):
         volume_sold_gallons,
         sale_dollars,
         bottles_sold
-    FROM `bigquery-public-data.iowa_liquor_sales.sales` WHERE EXTRACT(YEAR FROM date) > (EXTRACT(YEAR FROM CURRENT_DATE())-3) 
+    FROM `bigquery-public-data.iowa_liquor_sales.sales` WHERE EXTRACT(YEAR FROM date) > (EXTRACT(YEAR FROM CURRENT_DATE())-2) 
     order by date, county, store_name, category_name"""
     query_job = client.query(query)
     df = query_job.to_dataframe()
@@ -69,13 +70,30 @@ def extract_census_data():
 
     return df
 
-def clean_data(liquor_df, census_df):
+""" ------ Silver layer -------  """
+def clean_census_data(census_df):
+    """
+    Clean and normalize both datasets (capitalize counties, extract year/month, rename columns).
+    
+    Args:
+        census_df (pd.DataFrame): Raw census data.
+    
+    Returns:
+        tuple: (cleaned_liquor_df, cleaned_census_df)
+    """
+
+    census_df = census_df.rename(columns={'calendar_year': 'year', 'geographic_name': 'county'})
+    census_df['county'] = census_df['county'].str.replace(' County', '').str.capitalize()
+    census_df["year"] = pd.to_datetime(census_df["year"]).dt.year.astype("int32")
+
+    return census_df
+
+def clean_liquor_data(liquor_df):
     """
     Clean and normalize both datasets (capitalize counties, extract year/month, rename columns).
     
     Args:
         liquor_df (pd.DataFrame): Raw liquor sales data.
-        census_df (pd.DataFrame): Raw census data.
     
     Returns:
         tuple: (cleaned_liquor_df, cleaned_census_df)
@@ -84,23 +102,19 @@ def clean_data(liquor_df, census_df):
     liquor_df["year"] = pd.to_datetime(liquor_df["date"]).dt.year.astype("int32")
     liquor_df["month"] = pd.to_datetime(liquor_df["date"]).dt.month.astype("int32")
 
-    census_df = census_df.rename(columns={'calendar_year': 'year', 'geographic_name': 'county'})
-    census_df['county'] = census_df['county'].str.replace(' County', '').str.capitalize()
-    census_df["year"] = pd.to_datetime(census_df["year"]).dt.year.astype("int32")
+    return liquor_df
 
-    return liquor_df,census_df
-
-
-def transform_data(liquor_df, census_df):
+""" ------ Gold layer -------  """
+def create_country_sales_summary_df(liquor_df, census_df):
     """
-    Create 3 analysis tables: Country Sales Summary, Store & Product Analysis, Price Inflation Tracker.
+    Create Country Sales Summary analysis table.
     
     Args:
         liquor_df (pd.DataFrame): Cleaned liquor sales data.
         census_df (pd.DataFrame): Cleaned census data.
     
     Returns:
-        tuple: (country_sales_summary_df, store_and_product_analysis_df, price_inflation_tracker)
+        data frame: country_sales_summary_df
     """
     country_sales_summary_df = liquor_df[["year","county","volume_sold_gallons","sale_dollars"]]
     country_sales_summary_df = country_sales_summary_df.merge(census_df[['county','year','population']], on=['year','county'], how='left')
@@ -111,22 +125,47 @@ def transform_data(liquor_df, census_df):
     )
     country_sales_summary_df["sales_per_capita"] = country_sales_summary_df["total_sales_dollars"] / country_sales_summary_df["county_population"]
 
+    return country_sales_summary_df
+
+def create_store_and_product_analysis_df(liquor_df):
+    """
+        Create Store and product analytics table.
+        
+        Args:
+            liquor_df (pd.DataFrame): Cleaned liquor sales data.
+        
+        Returns:
+            data frame: store_and_product_analysis_df
+    """
     store_and_product_analysis_df = liquor_df[["year","month","store_name","category_name","sale_dollars","bottles_sold"]]
     store_and_product_analysis_df = store_and_product_analysis_df.groupby(["year","month","store_name","category_name"], as_index = False).agg(
         total_sales_dollars = ("sale_dollars", "sum"),
         total_bottles_sold = ("bottles_sold", "sum")
     )
 
-    price_inflation_tracker = liquor_df[["year","month","county","category_name","sale_dollars","volume_sold_liters"]]
-    price_inflation_tracker = price_inflation_tracker.groupby(["year","month","county","category_name"], as_index = False).agg(
+    return store_and_product_analysis_df
+
+def create_price_inflation_tracker_df(liquor_df):
+    """
+            Create Price Inflation Tracker table.
+            
+            Args:
+                liquor_df (pd.DataFrame): Cleaned liquor sales data.
+            
+            Returns:
+                data frame: price_inflation_tracker_df
+    """
+    price_inflation_tracker_df = liquor_df[["year","month","county","category_name","sale_dollars","volume_sold_liters"]]
+    price_inflation_tracker_df = price_inflation_tracker_df.groupby(["year","month","county","category_name"], as_index = False).agg(
         total_sales = ("sale_dollars", "sum"),
         total_liters_sold = ("volume_sold_liters", "sum")
     )
-    price_inflation_tracker["average_price_per_liter"] = price_inflation_tracker["total_sales"] / price_inflation_tracker["total_liters_sold"]
-    price_inflation_tracker = price_inflation_tracker[["year","month","county","category_name","average_price_per_liter"]]
+    price_inflation_tracker_df["average_price_per_liter"] = price_inflation_tracker_df["total_sales"] / price_inflation_tracker_df["total_liters_sold"]
+    price_inflation_tracker_df = price_inflation_tracker_df[["year","month","county","category_name","average_price_per_liter"]]
 
-    return country_sales_summary_df, store_and_product_analysis_df, price_inflation_tracker 
+    return price_inflation_tracker_df
 
+""" ------ Data Quality -------  """
 def validate_table_quality(df, table_name):
     """
     Validate data quality with 4 checks: nulls, negatives, duplicates, and empty table.
@@ -181,12 +220,12 @@ def validate_table_quality(df, table_name):
     duplicates_count = df.duplicated().sum()
 
     if duplicates_count > 0:
+        dq_report["status"] = "FAIL"
         dq_report["failures"].append({
             "check": "DUPLICATES",
             "severity": "CRITICAL",
             "details": f"{duplicates_count} duplicate rows found"
         })
-        dq_report["status"] = "FAIL"
     else:
         dq_report["checks_performed"].append(f"✓ DUPLICATES: No duplicate records found")
 
@@ -229,24 +268,24 @@ if __name__ == "__main__":
         census_df = extract_census_data()
         print(f"✓ Extracted {len(census_df)} rows of census data")
 
-        print(f"✓ Cleaning data...")
-        liquor_df, census_df = clean_data(liquor_df, census_df)
-        print(f"✓ Data cleaned")
+        print(f"✓ Cleaning liquor data...")
+        liquor_df = clean_liquor_data(liquor_df)
+        print(f"✓ Liquor data cleaned")
+        
+        print(f"✓ Cleaning Census data...")
+        census_df = clean_census_data(census_df)
+        print(f"✓ Census Data cleaned")
 
         print(f"\n--- TRANSFORMATION ---")
         print(f"✓ Transforming and joining datasets...")
-        country_sales_summary_df, store_and_product_analysis_df, price_inflation_tracker = transform_data(liquor_df, census_df)
+        country_sales_summary_df = create_country_sales_summary_df(liquor_df, census_df)
         print(f"✓ Transformed country_sales_summary_df created with {len(country_sales_summary_df)} rows")
+        store_and_product_analysis_df = create_store_and_product_analysis_df(liquor_df)
         print(f"✓ Transformed store_and_product_analysis_df created with {len(store_and_product_analysis_df)} rows")
-        print(f"✓ Transformed price_inflation_tracker created with {len(price_inflation_tracker)} rows")
+        price_inflation_tracker_df = create_price_inflation_tracker_df(liquor_df)
+        print(f"✓ Transformed price_inflation_tracker_df created with {len(price_inflation_tracker_df)} rows")
 
-        # for col in price_inflation_tracker.columns:
-        #     duplicated_row = price_inflation_tracker[price_inflation_tracker[col].duplicated(keep=False)]
-        #     if len(duplicated_row) > 0:
-        #         print(f"Column '{col}' has duplicates:")
-        #         print(duplicated_row)
-
-        # print(f"\n--- DATA QUALITY CHECKS ---")
+        print(f"\n--- DATA QUALITY CHECKS ---")
         
         # Validate each table individually
         dq_reports = []
@@ -255,7 +294,7 @@ if __name__ == "__main__":
             (census_df, "Census Raw Data"),
             (country_sales_summary_df, "Country Sales Summary"),
             (store_and_product_analysis_df, "Store and Product Analysis"),
-            (price_inflation_tracker, "Price Inflation Tracker")
+            (price_inflation_tracker_df, "Price Inflation Tracker")
         ]
         
         for table_df, table_name in tables_to_validate:

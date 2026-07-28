@@ -10,3 +10,6 @@ If this dataset had 10 Terabytes I would implement the following strategies:
 * **Batch Processing:** To handle the massive scale of the data efficiently, the ingestion process would be executed in batches partitioned or chunked by the `invoice_and_item_number` field. 
 * **Incremental Loading:** Instead of performing full historical loads, I would implement an incremental loading strategy. The pipeline would fetch and merge only the newest records by filtering the data using the `date` field (e.g., retrieving records where the date is greater than or equal to today). This significantly reduces the processing time and computing costs on BigQuery.
 """
+
+## 3.5 - Production environment deployment architecture
+![alt text](image-1.png)
