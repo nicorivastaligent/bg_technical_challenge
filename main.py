@@ -11,6 +11,7 @@ from google.cloud import bigquery
 import pandas as pd
 import requests
 from dotenv import load_dotenv
+import numpy as np
 
 load_dotenv()
 
@@ -29,6 +30,7 @@ def get_bigquery_client():
     return bigquery.Client(project=GCP_PROJECT_ID)
 
 """ ------ Bronze layer -------  """
+
 def extract_liquor_sales(client):
     """
     Extract Iowa liquor sales from BigQuery (last 3 years, limit 100K rows).
@@ -49,8 +51,7 @@ def extract_liquor_sales(client):
         volume_sold_gallons,
         sale_dollars,
         bottles_sold
-    FROM `bigquery-public-data.iowa_liquor_sales.sales` WHERE EXTRACT(YEAR FROM date) > (EXTRACT(YEAR FROM CURRENT_DATE())-2) 
-    order by date, county, store_name, category_name"""
+    FROM `bigquery-public-data.iowa_liquor_sales.sales` WHERE EXTRACT(YEAR FROM date) > (EXTRACT(YEAR FROM CURRENT_DATE())-3) """
     query_job = client.query(query)
     df = query_job.to_dataframe()
 
@@ -98,9 +99,10 @@ def clean_liquor_data(liquor_df):
     Returns:
         tuple: (cleaned_liquor_df, cleaned_census_df)
     """
-    liquor_df['county'] = liquor_df['county'].str.capitalize()
+        
     liquor_df["year"] = pd.to_datetime(liquor_df["date"]).dt.year.astype("int32")
     liquor_df["month"] = pd.to_datetime(liquor_df["date"]).dt.month.astype("int32")
+    liquor_df.fillna({"county": "NO DATA"}, inplace=True)
 
     return liquor_df
 
@@ -160,7 +162,11 @@ def create_price_inflation_tracker_df(liquor_df):
         total_sales = ("sale_dollars", "sum"),
         total_liters_sold = ("volume_sold_liters", "sum")
     )
-    price_inflation_tracker_df["average_price_per_liter"] = price_inflation_tracker_df["total_sales"] / price_inflation_tracker_df["total_liters_sold"]
+    price_inflation_tracker_df["average_price_per_liter"] = np.where(
+        (price_inflation_tracker_df["total_liters_sold"] == 0) | (price_inflation_tracker_df["total_liters_sold"].isna()),
+        0,
+        price_inflation_tracker_df["total_sales"] / price_inflation_tracker_df["total_liters_sold"]
+    )
     price_inflation_tracker_df = price_inflation_tracker_df[["year","month","county","category_name","average_price_per_liter"]]
 
     return price_inflation_tracker_df
@@ -262,7 +268,7 @@ if __name__ == "__main__":
         
         print(f"✓ Extracting Iowa Liquor Sales data from BigQuery...")
         liquor_df = extract_liquor_sales(client)
-        # print(f"✓ Extracted {len(liquor_df)} rows of liquor sales data")
+        print(f"✓ Extracted {len(liquor_df)} rows of liquor sales data")
 
         print(f"✓ Extracting Iowa Census data from Data Portal...")
         census_df = extract_census_data()
@@ -285,13 +291,13 @@ if __name__ == "__main__":
         price_inflation_tracker_df = create_price_inflation_tracker_df(liquor_df)
         print(f"✓ Transformed price_inflation_tracker_df created with {len(price_inflation_tracker_df)} rows")
 
+        del liquor_df, census_df  # Free memory
+
         print(f"\n--- DATA QUALITY CHECKS ---")
         
         # Validate each table individually
         dq_reports = []
         tables_to_validate = [
-            (liquor_df, "Liquor Sales Raw Data"),
-            (census_df, "Census Raw Data"),
             (country_sales_summary_df, "Country Sales Summary"),
             (store_and_product_analysis_df, "Store and Product Analysis"),
             (price_inflation_tracker_df, "Price Inflation Tracker")
