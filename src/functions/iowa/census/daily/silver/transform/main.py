@@ -9,7 +9,14 @@ GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 BQ_PUBLIC_DATASET = "bigquery-public-data"
 BQ_PUBLIC_TABLE = "iowa_liquor_sales.sales"
 
-if __name__ == "__main__":
+def main(request):
+    """
+        Cloud Function to clean and transform Iowa census population data and liquor sales data, and upload them to BigQuery.
+        Args:
+            request (flask.Request): The request object.
+        Returns:
+            Code 200 if successful, Code 500 if an error occurs.
+    """
     if not GCP_PROJECT_ID:
         raise ValueError("GCP_PROJECT_ID not set in .env file")
     
@@ -26,5 +33,7 @@ if __name__ == "__main__":
 
         silver.incremental_load_to_bigquery_liquor(client, GCP_PROJECT_ID)
 
+        return "Data transformation completed successfully", 200
     except Exception as e:
-            print(f"Error: {e}")
+        print(f"Error: {e}")
+        return f"Internal Error: {e}", 500
