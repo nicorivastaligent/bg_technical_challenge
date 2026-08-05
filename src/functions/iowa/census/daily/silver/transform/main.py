@@ -12,7 +12,7 @@ def main(request):
         Args:
             request (flask.Request): The request object.
         Returns:
-            Code 200 if successful, Code 500 if an error occurs.
+            Code 200 if successful, Code 500 if an error occurs. 
     """
     GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
     
