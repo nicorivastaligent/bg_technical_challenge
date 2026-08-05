@@ -34,5 +34,29 @@ jobs:
           service_account: dev-taligent-btc-sa-bronze@bg-technicall-challenge.iam.gserviceaccount.com
           environment_variables: |
             GCP_PROJECT_ID=bg-technicall-challenge
-          
+
+      - name: deploy census transform
+        uses: google-github-actions/deploy-cloud-functions@v3
+        with:
+          name: dev-btc-iowa-census-daily-silver-transform
+          runtime: python311
+          region: us-central1
+          source_dir: src/functions/iowa/census/daily/silver/transform/
+          entry_point: main
+          service_account: dev-taligent-btc-sa-transform@bg-technicall-challenge.iam.gserviceaccount.co
+          environment_variables: |
+            GCP_PROJECT_ID=bg-technicall-challenge
+
+      - name: deploy census gold
+        uses: google-github-actions/deploy-cloud-functions@v3
+        with:
+          name: dev-btc-iowa-census-daily-gold-create
+          runtime: python311
+          region: us-central1
+          source_dir: src/functions/iowa/census/daily/gold/create/
+          entry_point: main
+          service_account: dev-taligent-btc-sa-transform@bg-technicall-challenge.iam.gserviceaccount.co
+          environment_variables: |
+            GCP_PROJECT_ID=bg-technicall-challenge
+                    
 
