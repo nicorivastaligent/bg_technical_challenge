@@ -3,3 +3,4 @@ python-dotenv
 pandas
 google-cloud-bigquery
 pyarrow
+pandas-gbq
