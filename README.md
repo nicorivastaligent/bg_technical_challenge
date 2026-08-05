@@ -1,211 +1,146 @@
-# Iowa Liquor Sales & Census Data ETL Pipeline
+# Iowa Liquor Sales & Census Data ETL Pipeline (GCP Cloud Functions)
 
-ETL pipeline that extracts, transforms, and validates Iowa liquor sales and census data, combining BigQuery public datasets with information from the Iowa Data Portal. 
+This project implements a Medallion Architecture (Bronze, Silver, Gold) for robust data processing of Iowa liquor sales and census data. It extracts data from BigQuery public datasets and the Iowa Data Portal, transforms it, and loads it back into BigQuery for analysis.
 
-This project implements a Medallion Architecture (Bronze, Silver, Gold) for robust data processing.
+**Major Update:** The pipeline has been completely refactored to run as modular **Google Cloud Functions** rather than a single monolithic script. It now utilizes Google Cloud Storage (GCS) for raw data staging and BigQuery for data transformation and storage.
 
 ## 📋 Overview
 
-This project implements a complete ETL pipeline that:
+This project implements a complete ETL pipeline divided into independent Cloud Functions:
 
-1. **Extracts (Bronze)** Iowa liquor sales data from BigQuery and population census data from the Iowa Data Portal API.
-2. **Cleans (Silver)** and normalizes both datasets, handling missing values and data types.
-3. **Transforms (Gold)** data into three distinct analysis tables.
-4. **Optimizes Memory** by freeing large raw dataframes before validation.
-5. **Validates** data quality with automated checks on the final analytical tables.
-6. **Reports** validation results with error severities.
+1. **Extract (Bronze - Census):** Extracts population census data from the Iowa Data Portal API and stores the raw data as a Parquet file in a GCS bucket.
+2. **Transform & Incremental Load (Silver):**
+   - Cleans the census data from GCS and loads it into a BigQuery Silver table.
+   - Performs an **incremental load (MERGE)** of the liquor sales data from the public BigQuery dataset into a BigQuery Silver table.
+3. **Transform for Analysis (Gold):** Executes SQL queries directly within BigQuery to generate three distinct analysis tables based on the Silver data.
 
 ## 🎯 Pipeline Flow (Medallion Architecture)
 
 ```
-Extract (Bronze) → Clean (Silver) → Transform (Gold) → Validate → Report
+Cloud Function (Bronze) -> GCS Bucket (Raw Parquet)
+                                    |
+                                    v
+Cloud Function (Silver) -> BigQuery (Cleaned Tables + Incremental Liquor Load)
+                                    |
+                                    v
+Cloud Function (Gold)   -> BigQuery (Analytical Tables)
 ```
 
 ## 📊 Output Tables Generated (Gold Layer)
 
-### 1. **Country Sales Summary**
+The Gold Cloud Function generates the following tables directly in BigQuery:
+
+### 1. `country_sales_summary`
 - **Granularity**: By year and county
-- **Metrics**:
-  - `total_gallons_told`: Total gallons sold
-  - `total_sales_dollars`: Total sales in USD
-  - `county_population`: County population
-  - `sales_per_capita`: Sales per capita (derived)
+- **Metrics**: `total_Gallons_told`, `total_sales_dollars`, `population`, `sales_per_capita`
 - **Use**: Geographic sales performance analysis
 
-### 2. **Store and Product Analysis**
+### 2. `store_and_product_analysis`
 - **Granularity**: By year, month, store, and product category
-- **Metrics**:
-  - `total_sales_dollars`: Total sales in USD
-  - `total_bottles_sold`: Total bottles sold
+- **Metrics**: `total_sales_dollars`, `total_bottles_sold`
 - **Use**: Store and product category performance analysis
 
-### 3. **Price Inflation Tracker**
-- **Granularity**: By year, month, and product category
-- **Metrics**:
-  - `total_sales`: Total sales in USD
-  - `total_liters_sold`: Total liters sold
-  - `average_price_per_liter`: Average price per liter (derived). *Note: Includes robust handling using `numpy.where` to prevent division by zero or nulls.*
+### 3. `price_inflation_tracker`
+- **Granularity**: By year, month, county, and product category
+- **Metrics**: `average_price_per_liter` (handles division by zero/nulls)
 - **Use**: Price inflation tracking by category
-
-## ✅ Data Quality Validation
-
-The pipeline includes automated validations for each final analytical table:
-
-| Check | Severity | Description |
-|-------|----------|-------------|
-| NULL_VALUES | HIGH | Detects missing/null values in any column |
-| NEGATIVE_VALUES | HIGH | Detects negative values in numeric columns |
-| DUPLICATES | MEDIUM | Detects completely duplicate rows |
-| EMPTY_TABLE | HIGH | Verifies table contains data |
-
-**Note**: If critical failures (HIGH severity) are found, the pipeline stops execution.
 
 ## 🔧 Prerequisites
 
 - **Python** 3.8+
-- **Google Cloud Project** with BigQuery enabled
-- **gcloud CLI** configured with appropriate credentials
-- **Libraries**: `google-cloud-bigquery`, `pandas`, `requests`, `python-dotenv`, `numpy`
+- **Google Cloud Project** with BigQuery and Cloud Storage enabled.
+- **gcloud CLI** configured with appropriate credentials.
+- A GCS bucket for staging raw data (e.g., `dev-taligent-bg-technicall-challenge-gcs-bronze`).
+- BigQuery datasets created for the Silver and Gold layers.
 
-## 📦 Installation and Execution
+## 🚀 Instructions: How to Run the Code
 
-### Step 1: Clone the repository
+Since the architecture is based on independent Google Cloud Functions, you can run them either locally using the Functions Framework or deploy them directly to Google Cloud. 
 
+First, ensure you have authenticated your local environment:
 ```bash
-git clone <repository-url>
-cd bg_technical_challenge
-```
-
-### Step 2: Create virtual environment
-
-**On Linux/macOS:**
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-**On Windows:**
-```powershell
-python -m venv .venv
-.venv\Scripts\activate
-```
-
-### Step 3: Install dependencies
-
-```bash
-pip install --upgrade pip
-pip install -r requirements.txt
-```
-
-### Step 4: Configure environment variables
-
-Create a `.env` file in the project root:
-```
-GCP_PROJECT_ID=your-gcp-project-here
-```
-
-### Step 5: Authenticate with Google Cloud
-
-```bash
-gcloud auth login
-gcloud config set project your-gcp-project
 gcloud auth application-default login
+gcloud config set project your-gcp-project-id
 ```
 
-### Step 6: Run the pipeline
+### Option A: Run Locally (Functions Framework)
+
+You will need to run this process for each layer's directory. Here is an example for the Bronze layer:
+
+1. **Navigate to the specific function's directory:**
+   ```bash
+   cd src/functions/iowa/census/daily/bronze/extract
+   ```
+
+2. **Set up your environment variables:**
+   Create a `.env` file in that directory containing:
+   ```
+   GCP_PROJECT_ID=your-gcp-project-id
+   GCS_BUCKET_NAME=your-gcs-bucket-name
+   ```
+
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Run the function locally:**
+   ```bash
+   functions-framework --target=main --debug
+   ```
+   *The function will start a local server (usually on port 8080). You can trigger it by navigating to `http://localhost:8080` in your browser or using `curl http://localhost:8080`.*
+
+### Option B: Deploy to Google Cloud
+
+To deploy a function to your GCP environment, run the following command from within the specific function's directory (e.g., inside `bronze/extract`):
 
 ```bash
-python3 main.py
+gcloud functions deploy etl_bronze_extract   --runtime python311   --trigger-http   --entry-point main   --source .   --set-env-vars GCP_PROJECT_ID=your-gcp-project-id,GCS_BUCKET_NAME=your-gcs-bucket-name
 ```
+*(Repeat this deployment process for the Silver and Gold directories, adjusting the environment variables as needed).*
 
-### Expected Output:
+## 📦 Deployment Structure
+
+The project is structured to be deployed as separate HTTP-triggered Google Cloud Functions. Each layer (Bronze, Silver, Gold) has its own directory with a `main.py` and `requirements.txt`.
+
 ```
-✓ BigQuery client initialized
-✓ Project ID: your-gcp-project
-✓ Extracting Iowa Liquor Sales data from BigQuery...
-✓ Extracted X rows of liquor sales data
-✓ Extracting Iowa Census data from Data Portal...
-✓ Extracted Y rows of census data
-✓ Cleaning liquor data...
-✓ Liquor data cleaned
-✓ Cleaning Census data...
-✓ Census Data cleaned
-
---- TRANSFORMATION ---
-✓ Transforming and joining datasets...
-✓ Transformed country_sales_summary_df created with X rows
-✓ Transformed store_and_product_analysis_df created with Y rows
-✓ Transformed price_inflation_tracker_df created with Z rows
-
---- DATA QUALITY CHECKS ---
-
-Validating: Country Sales Summary
-  ✓ NULL_VALUES: No null values found
-  ...
+src/functions/iowa/
+├── census/daily/
+│   ├── bronze/extract/
+│   │   ├── main.py
+│   │   ├── requirements.txt
+│   │   └── utils/bronze.py
+│   ├── silver/transform/
+│   │   ├── main.py
+│   │   ├── requirements.txt
+│   │   └── utils/silver.py
+│   └── gold/create/
+│       ├── main.py
+│       ├── requirements.txt
+│       └── utils/gold.py
 ```
 
 ## 📡 Data Sources
 
 ### BigQuery Public Data
 - **Dataset**: `bigquery-public-data.iowa_liquor_sales.sales`
-- **Fields Extracted**: `invoice_and_item_number`, `date`, `county`, `store_name`, `category_name`, `volume_sold_liters`, `volume_sold_gallons`, `sale_dollars`, `bottles_sold`
-- **Filters**: Last 3 fiscal years.
+- **Filters**: Last 3 fiscal years (`EXTRACT(YEAR FROM date) > (EXTRACT(YEAR FROM CURRENT_DATE())-3)`).
 
 ### Iowa Data Portal API
 - **URL**: `https://data.iowa.gov/api/dataset-download?path=datasets%2F707%2Frows.json`
-- **Data**: County population by year.
-- **Fields**: `calendar_year`, `geographic_name`, `population`
 
-## 🔍 Cleaning Processes (Silver Layer)
+## 🔍 Data Processing Details
 
-### Liquor Sales Data
-1. Extraction of year and month as integer fields (int32).
-2. Handling null values in the `county` column by replacing them with `"NO DATA"`.
+### Bronze Layer (Census Extraction)
+- Fetches data from the Iowa Data Portal API.
+- Saves the raw JSON response as a Parquet file in GCS (`gs://[BUCKET_NAME]/bronze/census/iowa_census.parquet`).
 
-### Census Data
-1. Renaming columns (`calendar_year` → `year`, `geographic_name` → `county`).
-2. Normalization of county names (removal of the word " County").
-3. Capitalization of names.
-4. Conversion of year to int32.
+### Silver Layer (Cleaning & Incremental Load)
+- **Census Data:** Reads the Parquet file from GCS. Renames columns (`calendar_year` -> `year`, `geographic_name` -> `county`), removes " County" from names, capitalizes them, and converts the year to `int32`. Uploads the cleaned dataframe to BigQuery (Truncate and Load).
+- **Liquor Data:** Performs a BigQuery-native `MERGE` operation. It selects data from the public dataset for the last 3 years and inserts new rows or updates existing ones based on `invoice_and_item_number` in the target Silver table. If the target table doesn't exist, it creates it.
 
-## 🛠 Code Structure
-
-The code is strictly organized into functional layers:
-
-| Layer | Function | Description |
-|-------|----------|-------------|
-| **Setup** | `get_bigquery_client()` | Initializes the BigQuery client |
-| **Bronze** | `extract_liquor_sales(client)` | Extracts raw sales data from BigQuery |
-| **Bronze** | `extract_census_data()` | Extracts raw census data from the API |
-| **Silver** | `clean_liquor_data(liquor_df)` | Cleans and normalizes liquor sales data |
-| **Silver** | `clean_census_data(census_df)` | Cleans and normalizes census data |
-| **Gold** | `create_country_sales_summary_df(...)` | Generates the geographic sales summary table |
-| **Gold** | `create_store_and_product_analysis_df(...)` | Generates the store & product analytical table |
-| **Gold** | `create_price_inflation_tracker_df(...)` | Generates the inflation tracker table (handles div/0) |
-| **DQ** | `validate_table_quality(df, table_name)` | Performs the automated Data Quality assertions |
-
-*Note on Memory Management: Once the Gold analytical tables are generated, the pipeline actively frees up memory by deleting the large `liquor_df` and `census_df` dataframes (`del liquor_df, census_df`) before proceeding to the data quality checks.*
-
-## 📝 Advanced Usage Examples
-
-### Filter by specific store
-```python
-# Assuming you import store_and_product_analysis_df from main
-tienda_filter = store_and_product_analysis_df[
-    (store_and_product_analysis_df["year"] == 2024) & 
-    (store_and_product_analysis_df["month"] == 10) &
-    (store_and_product_analysis_df["store_name"] == 'HY-VEE #3')
-]
-print(tienda_filter)
-```
+### Gold Layer (Transformations)
+- Executes `CREATE OR REPLACE TABLE` SQL queries within BigQuery to build the final analytical tables by joining and aggregating the Silver tables.
 
 ## ⚠️ Important Notes
-
-- Negative values in `bottles_sold` and `sale_dollars` might indicate returns or adjustments in the original dataset.
-- A stable internet connection is required to fetch data from BigQuery and the API.
-- Your GCP credentials must have read access to `bigquery-public-data`.
-
-## 🐛 Troubleshooting
-
-- **Error: "GCP_PROJECT_ID not set"**: Ensure your `.env` file exists and contains the variable.
-- **Error: "Authentication failed"**: Run `gcloud auth application-default login` again.
+- The current structure hardcodes some GCS paths (e.g., in `silver/transform/main.py`: `"gs://dev-taligent-bg-technicall-challenge-gcs-bronze/..."`) and BigQuery Dataset names (e.g., `dev_taligent_bg_technicall_challenge_iowa_silver`, `bg-technicall-challenge.dev_taligent_bg_technicall_challenge_iowa_gold`). You will need to update these to match your GCP environment.
