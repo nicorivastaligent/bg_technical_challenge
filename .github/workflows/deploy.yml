@@ -31,7 +31,7 @@ jobs:
           region: us-central1
           source_dir: src/functions/iowa/census/daily/bronze/extract/
           entry_point: main
-          service_account_email: dev-taligent-btc-sa-bronze@bg-technicall-challenge.iam.gserviceaccount.com
+          service_account: dev-taligent-btc-sa-bronze@bg-technicall-challenge.iam.gserviceaccount.com
           environment_variables: |
             GCP_PROJECT_ID=bg-technicall-challenge
           
