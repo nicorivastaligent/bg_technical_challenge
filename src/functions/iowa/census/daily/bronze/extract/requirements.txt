@@ -2,3 +2,4 @@ functions-framework
 python-dotenv
 requests
 pandas
+pyarrow
