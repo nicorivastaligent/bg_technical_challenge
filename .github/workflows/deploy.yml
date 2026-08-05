@@ -1,0 +1,38 @@
+name: Deploy pipeline to cloud run v2
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy-functions:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Repo checkout
+        uses: actions/checkout@v4
+
+      - name: Authentication with Workload Identity 
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: 'projects/9385103983/locations/global/workloadIdentityPools/github-actions-pool/providers/github-actions-provider'
+          service_account: 'github-actions-deployer@bg-technicall-challenge.iam.gserviceaccount.com'
+      
+      - name: deploy census extract
+        uses: google-github-actions/deploy-cloud-functions@v3
+        with:
+          name: dev-btc-iowa-census-daily-bronze-extract
+          runtime: python311
+          region: us-central1
+          source_dir: src/functions/iowa/census/daily/bronze/extract/
+          entry_point: main
+          service_account_email: dev-taligent-btc-sa-bronze@bg-technicall-challenge.iam.gserviceaccount.com
+          environment_variables: |
+            GCP_PROJECT_ID=bg-technicall-challenge
+          
+
