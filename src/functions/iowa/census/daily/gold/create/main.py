@@ -4,9 +4,6 @@ import os
 from google.cloud import bigquery
 
 load_dotenv()
-GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
-LIQUOR_TABLE = f"{GCP_PROJECT_ID}.dev_taligent_bg_technicall_challenge_iowa_silver.liquor_sales_data"
-CENSUS_TABLE = f"{GCP_PROJECT_ID}.dev_taligent_bg_technicall_challenge_iowa_silver.census_data"
 
 def main(request):
     """
@@ -16,9 +13,14 @@ def main(request):
         Returns:
             Code 200 if successful, Code 500 if an error occurs.
     """
+    GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
+    
     if not GCP_PROJECT_ID:
         raise ValueError("GCP_PROJECT_ID not set in .env file")
-    
+
+    LIQUOR_TABLE = f"{GCP_PROJECT_ID}.dev_taligent_bg_technicall_challenge_iowa_silver.liquor_sales_data"
+    CENSUS_TABLE = f"{GCP_PROJECT_ID}.dev_taligent_bg_technicall_challenge_iowa_silver.census_data"
+
     try:
         client = bigquery.Client(project=GCP_PROJECT_ID)
         print(f"✓ BigQuery client initialized")

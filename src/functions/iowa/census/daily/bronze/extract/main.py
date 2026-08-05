@@ -3,8 +3,6 @@ from dotenv import load_dotenv
 import os 
 
 load_dotenv()
-GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
-GCS_BUCKET_NAME = os.environ.get("GCS_BUCKET_NAME")
 IOWA_CENSUS_URL = "https://data.iowa.gov/api/dataset-download?path=datasets%2F707%2Frows.json"
 
 def main(request):
@@ -15,19 +13,22 @@ def main(request):
         Returns:
             Code 200 if successful, Code 500 if an error occurs.
     """
-    if not GCP_PROJECT_ID:
-        raise ValueError("GCP_PROJECT_ID not set in .env file")
-    if not GCS_BUCKET_NAME:
-        raise ValueError("GCS_BUCKET_NAME not set in .env file")
+    gcp_project_id = os.environ.get("GCP_PROJECT_ID")
+    gcs_bucket_name = os.environ.get("GCS_BUCKET_NAME")
+
+    if not gcp_project_id:
+        raise ValueError("gcp_project_id not set in .env file")
+    if not gcs_bucket_name:
+        raise ValueError("gcs_bucket_name not set in .env file")
     
     try:
         
         census_df = bronze.extract_census_data(IOWA_CENSUS_URL)
         print(f"✓ Extracted {len(census_df)} rows of census data")
 
-        print(f"✓ Uploading raw data to GCS bucket: {GCS_BUCKET_NAME}...")
+        print(f"✓ Uploading raw data to GCS bucket: {gcs_bucket_name}...")
 
-        census_path = f"gs://{GCS_BUCKET_NAME}/bronze/census/iowa_census.parquet"
+        census_path = f"gs://{gcs_bucket_name}/bronze/census/iowa_census.parquet"
         census_df.to_parquet(census_path, index = False)
         print(f"✓ Uploaded census data to {census_path}")
 

@@ -5,9 +5,6 @@ import pandas as pd
 from google.cloud import bigquery
 
 load_dotenv()
-GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
-BQ_PUBLIC_DATASET = "bigquery-public-data"
-BQ_PUBLIC_TABLE = "iowa_liquor_sales.sales"
 
 def main(request):
     """
@@ -17,6 +14,8 @@ def main(request):
         Returns:
             Code 200 if successful, Code 500 if an error occurs.
     """
+    GCP_PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
+    
     if not GCP_PROJECT_ID:
         raise ValueError("GCP_PROJECT_ID not set in .env file")
     
