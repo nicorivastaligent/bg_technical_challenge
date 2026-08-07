@@ -4,7 +4,7 @@ from google.api_core.exceptions import NotFound
 
 def clean_census_data(census_df):
     """
-    Clean and normalize both datasets (capitalize counties, extract year/month, rename columns).
+    Clean and normalize census dataset (capitalize counties, convert year to integer, rename columns).
     
     Args:
         census_df (pd.DataFrame): Raw census data.
@@ -21,19 +21,38 @@ def clean_census_data(census_df):
     return census_df
 
 def upload_to_bigquery(df, table_name, client, GCP_PROJECT_ID):
+    """
+    Upload a Pandas DataFrame to BigQuery in Silver layer with overwrite disposition.
+
+    Args:
+        df (pd.DataFrame): Dataframe to load into BigQuery.
+        table_name (str): Target table name in Silver dataset.
+        client (bigquery.Client): BigQuery client object.
+        GCP_PROJECT_ID (str): GCP project ID.
+
+    Returns:
+        google.cloud.bigquery.job.LoadJob: Load job execution result.
+    """
     table_id = f"{GCP_PROJECT_ID}.dev_taligent_bg_technicall_challenge_iowa_silver.{table_name}"
-    # Configuración de la carga
+    # Load configuration
     job_config = bigquery.LoadJobConfig(
-        # Opción para sobrescribir la tabla si ya existe
+        # Overwrite disposition if table exists
         write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
     )
-    # Cargar el DataFrame a BigQuery
+    # Load DataFrame into BigQuery
     job = client.load_table_from_dataframe(df, table_id, job_config=job_config)
-    job.result()  # Espera a que finalice el proceso en BQ
+    job.result()  # Wait for job completion
     print(f"✓ Uploaded cleaned {table_name} data to table {table_id} in BigQuery")
     return job
 
 def incremental_load_to_bigquery_liquor(client, GCP_PROJECT_ID):
+    """
+    Perform an incremental MERGE load of liquor sales data from public dataset to BigQuery Silver layer.
+
+    Args:
+        client (bigquery.Client): BigQuery client object.
+        GCP_PROJECT_ID (str): GCP project ID.
+    """
     target_table = f"{GCP_PROJECT_ID}.dev_taligent_bg_technicall_challenge_iowa_silver.liquor_sales_data"
     public_table = "bigquery-public-data.iowa_liquor_sales.sales"
 

@@ -30,7 +30,7 @@ Cloud Function (Gold)   -> BigQuery (Analytical Tables)
 
 The Gold Cloud Function generates the following tables directly in BigQuery:
 
-### 1. `country_sales_summary`
+### 1. `county_sales_summary` (in code: `country_sales_summary`)
 - **Granularity**: By year and county
 - **Metrics**: `total_Gallons_told`, `total_sales_dollars`, `population`, `sales_per_capita`
 - **Use**: Geographic sales performance analysis
@@ -141,6 +141,13 @@ src/functions/iowa/
 
 ### Gold Layer (Transformations)
 - Executes `CREATE OR REPLACE TABLE` SQL queries within BigQuery to build the final analytical tables by joining and aggregating the Silver tables.
+
+## 🗺️ Roadmap / Future Improvements
+
+- **Further Modularization**: Split table transformations (such as liquor sales transformations) into dedicated, independent functions/modules, reflecting separate Cloud Run / Cloud Function deployments for higher scalability and isolation.
+- **Dynamic Configuration & Parameterization**: Remove hardcoded bucket names and BigQuery datasets, replacing them with dynamic environment variables or GCP Secret Manager.
+- **Data Quality & Testing**: Integrate data quality check frameworks (e.g., dbt tests or Great Expectations) to validate data schemas and nulls prior to Silver/Gold loading.
+- **CI/CD Automation**: Implement GitHub Actions workflows for automated linting, unit testing, and deployment to GCP environments.
 
 ## ⚠️ Important Notes
 - The current structure hardcodes some GCS paths (e.g., in `silver/transform/main.py`: `"gs://dev-taligent-bg-technicall-challenge-gcs-bronze/..."`) and BigQuery Dataset names (e.g., `dev_taligent_bg_technicall_challenge_iowa_silver`, `bg-technicall-challenge.dev_taligent_bg_technicall_challenge_iowa_gold`). You will need to update these to match your GCP environment.

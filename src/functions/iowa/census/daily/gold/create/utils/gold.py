@@ -1,6 +1,6 @@
 def create_country_sales_summary_df(client, liquor_table, census_table):
     """
-    Create Country Sales Summary analysis table in BigQuery.
+    Create County Sales Summary analysis table in BigQuery.
     
     Args:
         client (bigquery.Client): BigQuery client.

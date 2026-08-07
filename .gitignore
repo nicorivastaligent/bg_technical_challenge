@@ -9,3 +9,7 @@ env/
 data/
 output/
 .venv/
+.idea/
+.vscode/
+*:Zone.Identifier
+*.png
