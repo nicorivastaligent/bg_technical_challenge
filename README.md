@@ -146,7 +146,7 @@ src/functions/iowa/
 
 - **Further Modularization**: Split table transformations (such as liquor sales transformations) into dedicated, independent functions/modules, reflecting separate Cloud Run / Cloud Function deployments for higher scalability and isolation.
 - **Dynamic Configuration & Parameterization**: Remove hardcoded bucket names and BigQuery datasets, replacing them with dynamic environment variables or GCP Secret Manager.
-- **Data Quality & Testing**: Integrate data quality check frameworks (e.g., dbt tests or Great Expectations) to validate data schemas and nulls prior to Silver/Gold loading.
+- **Data Quality & Testing**: Adapt the current Pandas `data_quality.py` module to execute directly in BigQuery via SQL assertions, and integrate DQ checks into the ETL pipeline execution flow before Silver/Gold loading.
 - **CI/CD Automation**: Implement GitHub Actions workflows for automated linting, unit testing, and deployment to GCP environments.
 
 ## ⚠️ Important Notes
